@@ -1,6 +1,4 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
-
 import { Flex, Icon, LogoMarkMono, Spacer, useToast } from '@aircall/tractor';
 
 import { FormState } from './Login.decl';
@@ -13,8 +11,7 @@ export const LoginPage = () => {
   const { login } = useAuth();
   const [formState, setFormState] = React.useState<FormState>('Idle');
   const { showToast, removeToast } = useToast();
-  const navigate = useNavigate();
-
+  
   const onSubmit = async (email: string, password: string) => {
     try {
       setFormState('Pending');
@@ -30,8 +27,9 @@ export const LoginPage = () => {
     }
   };
 
+  // ensure that this still works in mobile viewports
   return (
-    <Spacer p={5} h="100%" direction="vertical" justifyContent="center" fluid space={5}>
+    <Spacer p={5} h="100%" direction="vertical" justifyContent="center" fluid space={5} maxWidth={540} data-testid={`login-page`}>
       <Flex alignItems="center">
         <Icon component={LogoMarkMono} size={60} mx="auto" />
       </Flex>
