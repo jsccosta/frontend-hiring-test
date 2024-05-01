@@ -1,23 +1,31 @@
-import { ApolloClient, createHttpLink, from, fromPromise, InMemoryCache } from '@apollo/client';
+import {
+  ApolloClient,
+  ApolloLink,
+  createHttpLink,
+  from,
+  fromPromise,
+  InMemoryCache,
+  split
+} from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
+import { WebSocketLink } from '@apollo/client/link/ws';
+
 import { REFRESH_TOKEN } from '../mutations';
+import { isWebsocketSubscription } from './helpers';
 
-const httpLink = createHttpLink({
-  uri: 'https://frontend-test-api.aircall.dev/graphql'
-});
+import { HTTP_GRAPHQL_ENDPOINT, WS_GRAPHQL_ENDPOINT } from './consts';
+import { getWsClient } from './helpers';
 
-const getRefreshedToken = async (): Promise<void> => {
-  let isRefreshingToken: boolean = false;
+const wsClient = getWsClient(WS_GRAPHQL_ENDPOINT)
+const httpLink = createHttpLink({ uri: HTTP_GRAPHQL_ENDPOINT });
+const wsLink = new WebSocketLink(wsClient);
+
+export const getRefreshedToken = async (): Promise<void> => {
   const refreshToken = localStorage.getItem('refresh_token') ? JSON.parse(localStorage.getItem('refresh_token')!) : null;
-
   if (refreshToken) {
     localStorage.setItem('access_token', JSON.stringify(refreshToken));
   }
-
-  if (isRefreshingToken) return;
-
-  isRefreshingToken = true;
 
   try {
     const { data } = await client.mutate({
@@ -26,8 +34,6 @@ const getRefreshedToken = async (): Promise<void> => {
         refreshToken: refreshToken
       }
     });
-
-    isRefreshingToken = false;
 
     const { access_token, refresh_token } = data.refreshTokenV2;
 
@@ -38,27 +44,7 @@ const getRefreshedToken = async (): Promise<void> => {
   }
 };
 
-const errorLink = onError(({ graphQLErrors, operation, forward }) => {
-  if (graphQLErrors) {
-    for (let err of graphQLErrors) {
-      const exception = err.extensions.exception as { status: number };
-      
-      if (exception && exception.status === 401) {
-        return fromPromise(
-          getRefreshedToken().catch(() => {
-            localStorage.clear();
-            window.location.href = '/login';
-          })
-        ).flatMap(() => {
-          return forward(operation);
-        });
-      }
-    }
-  }
-});
-
 const authLink = setContext((_, { headers }) => {
-
   const accessToken = localStorage.getItem('access_token') ? JSON.parse(localStorage.getItem('access_token')!) : null;
   return {
     headers: {
@@ -68,7 +54,44 @@ const authLink = setContext((_, { headers }) => {
   };
 });
 
+const errorLink: ApolloLink = onError(({ graphQLErrors, operation, forward }) => {
+  let promise = Promise.resolve();
+  let isRefreshingToken: boolean = false;
+
+  if (graphQLErrors?.some(err => err.message === 'Unauthorized')) {
+    const isWebsocket = isWebsocketSubscription(operation);
+    if (!isRefreshingToken) {
+      isRefreshingToken = true;
+      promise = getRefreshedToken()
+        .then(() => {
+          isRefreshingToken = false;
+          if (isWebsocket) {
+            wsClient.close(true);
+          }
+        })
+        .catch(() => {
+          localStorage.clear();
+          window.location.reload();
+        });
+    } else {
+      return forward(operation);
+    }
+
+    return fromPromise(promise).flatMap(() => {
+      return forward(operation);
+    });
+  }
+});
+
+const operationLinks: ApolloLink = split(
+  operation => {
+    return isWebsocketSubscription(operation);
+  },
+  wsLink,
+  httpLink
+);
+
 export const client = new ApolloClient({
-  link: from([errorLink, authLink, httpLink]),
+  link: from([authLink, errorLink, operationLinks]),
   cache: new InMemoryCache()
 });
