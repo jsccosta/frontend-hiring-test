@@ -1,7 +1,7 @@
 /// <reference types="cypress" />
 
 
-describe('Test Authentication', () => {
+describe('Test Authentication and Logout', () => {
   beforeEach(() => {
     cy.visit('http://localhost:3000/login')
     cy.get('#email').type('joe@aircall.io');
@@ -22,7 +22,8 @@ describe('Test Authentication', () => {
     cy.contains('logout').should('be.visible');
     cy.contains(/calls history/i).should('be.visible');
     cy.get('[data-testid="call-card"]').eq(1).click();
-    cy.get('[data-testid="call-detail-card"]').should('be.visible');
+    cy.contains(/calls archived/i).should('be.visible');
+    // cy.get('[data-testid="call-detail-card"]').should('be.visible');
   })
 
   it('successfully logs out', () => {

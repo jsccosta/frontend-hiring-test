@@ -69,7 +69,7 @@ export const CallDetail: React.FC<CallDetailProps> = ({ call, onClick }) => {
   const notes = call.notes ? `Call has ${call.notes.length} notes` : <></>;
 
   return (
-    <Spacer space={3} direction="vertical" fluid data-testid={`call-card`}>
+    <Spacer space={3} direction="vertical" fluid data-testid={`${call.is_archived ? 'archived' : 'unarchived'}-call-card`}>
       <Box
         minWidth="1"
         key={call.id}
@@ -107,6 +107,7 @@ export const CallDetail: React.FC<CallDetailProps> = ({ call, onClick }) => {
                 <Icon key={call.id} component={SpinnerOutlined} spin />
               ) : (
                 <IconButton
+                  data-testid={`call-archival-button`}
                   key={call.id}
                   size={24}
                   component={call.is_archived ? ArchiveFilled : ArchiveOutlined}
