@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Grid,
   Icon,
@@ -7,13 +7,55 @@ import {
   Box,
   DiagonalDownOutlined,
   DiagonalUpOutlined,
+  Tooltip,
+  ArchiveFilled,
+  ArchiveOutlined,
+  IconButton,
+  SpinnerOutlined,
+  useToast
 } from '@aircall/tractor';
+import { useMutation } from '@apollo/client';
 
+import { ARCHIVE_CALL } from '../../gql/mutations';
+import { CallDetailProps } from './CallDetail.decl';
 import { formatDate, formatDuration } from '../../helpers/dates';
 
-import { CallDetailProps } from './CallDetail.decl';
-
 export const CallDetail: React.FC<CallDetailProps> = ({ call, onClick }) => {
+  let archivingCallId = useRef<string | undefined>();
+  const ARCHIVE_OPERATION = 'ARCHIVE_OPERATION';
+
+  const { showToast, removeToast } = useToast();
+  const [archiveMutation] = useMutation(ARCHIVE_CALL);
+
+  const handleArchiveCall = (call: Call) => {
+    const { id } = call;
+
+    removeToast(ARCHIVE_OPERATION);
+    archivingCallId.current = id;
+
+    archiveMutation({
+      variables: {
+        id
+      },
+      onCompleted: ({ archiveCall }) => {
+        archivingCallId.current = undefined;
+        showToast({
+          id: ARCHIVE_OPERATION,
+          message: archiveCall.is_archived ? 'Call archived' : 'Call unarchived',
+          variant: 'success'
+        });
+      },
+      onError: () => {
+        archivingCallId.current = undefined;
+        showToast({
+          id: ARCHIVE_OPERATION,
+          message: 'Error while archiving call',
+          variant: 'error'
+        });
+      }
+    });
+  };
+
   const icon = call.direction === 'inbound' ? DiagonalDownOutlined : DiagonalUpOutlined;
   const title =
     call.call_type === 'missed'
@@ -27,11 +69,11 @@ export const CallDetail: React.FC<CallDetailProps> = ({ call, onClick }) => {
   const notes = call.notes ? `Call has ${call.notes.length} notes` : <></>;
 
   return (
-    <Spacer space={3} direction="vertical" fluid data-testid={`call-card`}>
+    <Spacer space={3} direction="vertical" fluid data-testid={`${call.is_archived ? 'archived' : 'unarchived'}-call-card`}>
       <Box
         minWidth="1"
         key={call.id}
-        bg="black-a30"
+        bg={call.is_archived ? '#C9DFDB' : 'black-a10'}
         borderRadius={16}
         cursor="pointer"
         onClick={() => onClick(call.id)}
@@ -59,6 +101,25 @@ export const CallDetail: React.FC<CallDetailProps> = ({ call, onClick }) => {
             </Typography>
             <Typography variant="caption">{date}</Typography>
           </Box>
+          <Spacer space="s">
+            <Tooltip title={call.is_archived ? 'Unarchive call' : 'Archive call'}>
+              {archivingCallId.current === call.id ? (
+                <Icon key={call.id} component={SpinnerOutlined} spin />
+              ) : (
+                <IconButton
+                  data-testid={`call-archival-button`}
+                  key={call.id}
+                  size={24}
+                  component={call.is_archived ? ArchiveFilled : ArchiveOutlined}
+                  color="#01B288"
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleArchiveCall(call);
+                  }}
+                />
+              )}
+            </Tooltip>
+          </Spacer>
         </Grid>
         <Box px={4} py={2}>
           <Typography variant="caption">{notes}</Typography>

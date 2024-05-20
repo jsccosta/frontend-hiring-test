@@ -13,6 +13,8 @@ import { groupCallsIntoPages, filterCalls, sortCallsByDate } from '../helpers';
 import { CallGroup } from './callsList.decl';
 import { CallFilterBar } from './CallFilterBar';
 
+import { CALLS_SUBSCRIPTION } from '../../gql/archiveCallSubscription';
+
 const PaginationWrapper = styled.div`
   > div {
     width: inherit;
@@ -36,8 +38,12 @@ const CallsListPage = () => {
   const [totalFilteredCalls, setTotalFilteredCalls] = useState(0);
   const [paginatedCalls, setPaginatedCalls] = useState<CallGroup[]>([]);
 
-  const { loading, error, data } = useQuery(PAGINATED_CALLS, {
+  const { loading, error, data, subscribeToMore } = useQuery(PAGINATED_CALLS, {
     variables: { offset: 0, limit: 200 }
+  });
+
+  subscribeToMore({
+    document: CALLS_SUBSCRIPTION
   });
 
   useEffect(() => {
